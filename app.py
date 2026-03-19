@@ -521,10 +521,13 @@ with tab2:
         st.markdown("### 🔧 训练设置")
         ct1, ct2 = st.columns(2)
         with ct1:
-            train_mode = st.radio("训练模式", ["预训练权重微调（推荐）","从头训练"])
-            pt_file = None
+            train_mode = st.radio("训练模式", ["预训练权重微调（推荐）","随机初始化训练"])
             if "预训练" in train_mode:
-                pt_file = st.file_uploader("上传 best_model.pt", type=['pt','pth'])
+                pt_path = "pretrained/best_model.pt"
+                if os.path.exists(pt_path):
+                    st.markdown(f'<div class="info-box">✅ 已检测到预训练权重：{pt_path}</div>', unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ 未检测到 pretrained/best_model.pt，将自动切换为随机初始化训练")
         with ct2:
             epochs = st.slider("训练轮数", 100, 5000, 1000, 100)
             lr = st.select_slider("学习率", [1e-4,3e-4,5e-4,1e-3,3e-3], value=1e-3)
@@ -543,12 +546,12 @@ with tab2:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             model = FCATabDDPM(len(ccols),len(bcols),cdims,len(yuniq),d_f,n_layers,n_heads,d_ff,T,device)
 
-            if "预训练" in train_mode and pt_file:
+            if "预训练" in train_mode and os.path.exists("pretrained/best_model.pt"):
                 try:
-                    n_m, n_t = model.partial_load_pretrained(io.BytesIO(pt_file.read()))
+                    n_m, n_t = model.partial_load_pretrained("pretrained/best_model.pt")
                     st.info(f"📦 预训练权重：{n_m}/{n_t} 参数匹配并加载")
                 except Exception as e:
-                    st.warning(f"⚠️ 加载失败：{e}，从头训练")
+                    st.warning(f"⚠️ 加载失败：{e}，随机初始化训练")
 
             pb = st.progress(0); st_text = st.empty(); losses = []
             def cb(ep, tot, loss):
@@ -670,8 +673,8 @@ with tab4:
     #### 1. 数据上传与配置
     上传CSV数据 → 选择目标变量 → 确认特征类型（支持手动修正）
     #### 2. 模型训练与生成
-    - **预训练微调**：上传 best_model.pt，自动匹配可迁移的参数，收敛更快
-    - **从头训练**：完全基于用户数据训练
+    - **预训练微调**：自动加载 pretrained/best_model.pt，匹配可迁移的参数，收敛更快
+    - **随机初始化训练**：完全基于用户数据训练，适合大规模数据或与预训练领域差异较大的场景
     - 四种增补策略：完全平衡 / 按比例 / 指定最小量 / 自定义
     #### 3. 生成质量评估
     JSD / WD / PCD / 共现MAE 四维评估 + 注意力可视化
